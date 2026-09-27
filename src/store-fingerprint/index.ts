@@ -1,14 +1,16 @@
-import { lstat } from 'fs/promises'
+import { createHash } from 'crypto'
+import { lstat, readdir } from 'fs/promises'
 import path from 'path'
 
-/**
- * pnpm records every package in `index.db` or, until it is checkpointed, its
- * write-ahead log. Returns undefined if the store has no index.
- */
 export async function fingerprintStore(storePath: string): Promise<string | undefined> {
-  const [index, wal] = await Promise.all(
-    ['index.db', 'index.db-wal'].map(name => lstat(path.join(storePath, name)).catch(() => undefined)),
-  )
-  if (!index) return undefined
-  return [index, wal].map(stats => stats ? `${stats.size}:${stats.mtimeMs}` : 'none').join(' ')
+  const buckets = await readdir(path.join(storePath, 'files')).catch(() => [])
+  const entries = ['index.db', 'index.db-wal', ...buckets.sort().map(bucket => path.join('files', bucket))]
+  const stats = await Promise.all(entries.map(entry => lstat(path.join(storePath, entry)).catch(() => undefined)))
+  if (!stats[0]) return undefined
+
+  const hash = createHash('sha256')
+  entries.forEach((entry, i) => {
+    hash.update(`${entry}:${stats[i] ? `${stats[i].size}:${stats[i].mtimeMs}` : 'none'}\n`)
+  })
+  return hash.digest('hex')
 }

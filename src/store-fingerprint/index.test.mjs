@@ -11,7 +11,8 @@ after(() => rmSync(root, { recursive: true, force: true }))
 let stores = 0
 function createStore() {
   const store = path.join(root, `store-${stores++}`)
-  mkdirSync(path.join(store, 'files'), { recursive: true })
+  mkdirSync(path.join(store, 'files', '00'), { recursive: true })
+  mkdirSync(path.join(store, 'tmp'))
   writeFileSync(path.join(store, 'index.db'), 'rows')
   return store
 }
@@ -21,16 +22,22 @@ function touch(file) {
   utimesSync(file, later, later)
 }
 
-test('files outside the index do not change the fingerprint', async () => {
+test('changes outside the index and package files do not change the fingerprint', async () => {
   const store = createStore()
   const before = await fingerprintStore(store)
-  writeFileSync(path.join(store, 'files', 'abc'), 'content')
+  writeFileSync(path.join(store, 'tmp', 'abc'), 'scratch')
+  touch(path.join(store, 'tmp'))
   assert.equal(await fingerprintStore(store), before)
 })
 
 for (const [label, change] of [
   ['a written index', store => touch(path.join(store, 'index.db'))],
   ['a new write-ahead log', store => writeFileSync(path.join(store, 'index.db-wal'), 'rows')],
+  ['a package file added without an index write', store => {
+    writeFileSync(path.join(store, 'files', '00', 'abc'), 'content')
+    touch(path.join(store, 'files', '00'))
+  }],
+  ['a new file directory', store => mkdirSync(path.join(store, 'files', '01'))],
 ]) {
   test(`${label} changes the fingerprint`, async () => {
     const store = createStore()

@@ -75,7 +75,7 @@ export function finalizeCache(cache: RestoredCache, resolvedRuntimes: readonly R
   setOutput('cache-hit', isLockfileExactHit(cache.restoredKey, cache.lockfileKeyPrefix))
 }
 
-/** Must run before the install, so the post step can skip saving an unchanged store. */
+/** Must run before the install. */
 export async function fingerprintRestoredStore(
   cache: RestoredCache,
   resolvedRuntimes: readonly RuntimeRequest[],
